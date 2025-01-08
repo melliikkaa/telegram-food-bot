@@ -1,10 +1,14 @@
 import sqlite3
+import os
 from typing import List, Tuple, Optional
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class DatabaseManager:
     def __init__(self, db_name: str = "recipes.db"):
         self.db_name = db_name
-        self.SUPER_ADMIN_IDS = [123456789]  # Replace with your Telegram ID
+        self.SUPER_ADMIN_ID = int(os.getenv('SUPER_ADMIN_ID', '1'))
 
     def _get_connection(self):
         return sqlite3.connect(self.db_name)
@@ -114,15 +118,27 @@ class DatabaseManager:
             conn.close()
 
     def is_super_admin(self, telegram_id: int) -> bool:
-        return telegram_id in self.SUPER_ADMIN_IDS
+        return telegram_id == self.SUPER_ADMIN_ID
 
-    def ban_user(self, telegram_id: int) -> bool:
+    def ban_user(self, telegram_id: int, reason: str = None) -> bool:
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute("UPDATE users SET is_active = FALSE WHERE telegram_id = ?", (telegram_id,))
+            
+            # Update user status and add ban reason
+            cursor.execute("""
+                UPDATE users 
+                SET is_active = FALSE,
+                    ban_reason = ?,
+                    banned_at = datetime('now')
+                WHERE telegram_id = ?
+            """, (reason, telegram_id))
+            
             conn.commit()
-            return True
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Error banning user: {e}")
+            return False
         finally:
             conn.close()
 

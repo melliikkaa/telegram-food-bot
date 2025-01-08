@@ -3,7 +3,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 from database.db_operations import DatabaseManager
 
 # States for registration
-(REGISTER_USERNAME) = range(1)
+(REGISTER_USERNAME, BAN_REASON) = range(2)
 
 db = DatabaseManager()
 
@@ -95,14 +95,65 @@ async def register_username(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @admin_only
 async def ban_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args or not context.args[0].isdigit():
-        await update.message.reply_text("لطفاً شناسه کاربری را وارد کنید.")
-        return
+        await update.message.reply_text(
+            "لطفا دستور را به این شکل وارد کنید:\n"
+            "/ban [شناسه کاربری]"
+        )
+        return ConversationHandler.END
     
     user_id = int(context.args[0])
-    if db.ban_user(user_id):
-        await update.message.reply_text("کاربر با موفقیت مسدود شد.")
+    
+    # Check if user exists
+    if not db.is_user_registered(user_id):
+        await update.message.reply_text("کاربر مورد نظر یافت نشد.")
+        return ConversationHandler.END
+    
+    # Store user_id in context
+    context.user_data['ban_user_id'] = user_id
+    
+    # Ask for ban reason
+    await update.message.reply_text(
+        "لطفاً دلیل مسدود کردن کاربر را وارد کنید:\n"
+        "(یا /cancel برای انصراف)"
+    )
+    return BAN_REASON
+
+async def receive_ban_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.text == '/cancel':
+        await update.message.reply_text("عملیات مسدود کردن کاربر لغو شد.")
+        return ConversationHandler.END
+    
+    user_id = context.user_data.get('ban_user_id')
+    reason = update.message.text
+    
+    if db.ban_user(user_id, reason):
+        # Get user info
+        user_profile = db.get_user_profile(user_id)
+        username = user_profile.get('username', 'نامشخص') if user_profile else 'نامشخص'
+        
+        await update.message.reply_text(
+            f"کاربر {username} با موفقیت مسدود شد.\n"
+            f"دلیل: {reason}"
+        )
+        
+        # Try to notify the banned user
+        try:
+            await context.bot.send_message(
+                user_id,
+                f"حساب کاربری شما مسدود شد.\n"
+                f"دلیل: {reason}\n\n"
+                "در صورت اعتراض با پشتیبانی تماس بگیرید."
+            )
+        except Exception:
+            pass  # User might have blocked the bot
     else:
-        await update.message.reply_text("خطا در مسدود کردن کاربر.") 
+        await update.message.reply_text("خطا در مسدود کردن کاربر.")
+    
+    return ConversationHandler.END
+
+async def cancel_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("عملیات مسدود کردن کاربر لغو شد.")
+    return ConversationHandler.END
 
 @require_auth
 async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):

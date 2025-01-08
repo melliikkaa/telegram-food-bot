@@ -4,7 +4,7 @@ from handlers.bmi_handler import *
 from handlers.search_handler import *
 from database.db_setup import init_db
 from utils.common import cancel
-from handlers.auth_handler import start_registration, register_username, ban_user_command, require_auth, REGISTER_USERNAME, show_profile
+from handlers.auth_handler import start_registration, register_username, ban_user_command, require_auth, REGISTER_USERNAME, show_profile, BAN_REASON, receive_ban_reason, cancel_ban
 from handlers.recipe_handler import view_recipe_media
 import os
 from dotenv import load_dotenv
@@ -129,6 +129,19 @@ def main():
     app.add_handler(recipe_conv_handler)
     app.add_handler(bmi_conv_handler)
     app.add_handler(search_conv_handler)
+    
+    # Add ban conversation handler
+    ban_conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('ban', ban_user_command)],
+        states={
+            BAN_REASON: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_ban_reason)
+            ]
+        },
+        fallbacks=[CommandHandler('cancel', cancel_ban)]
+    )
+    
+    app.add_handler(ban_conv_handler)
     
     # # Debug middleware - moved to the end and modified filter
     # class DebugMiddleware:

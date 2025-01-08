@@ -36,6 +36,8 @@ def init_db():
         bmi FLOAT,
         preferences TEXT,
         is_active BOOLEAN DEFAULT TRUE,
+        ban_reason TEXT,
+        banned_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
     
